@@ -23,5 +23,9 @@ export class CommsComponent implements OnInit {
         this.data = resp.toString();
       });
   }
+
+  onPush() {
+    console.log("Pushed it");
+  }
 }
 

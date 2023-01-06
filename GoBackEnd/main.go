@@ -18,41 +18,52 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
+// CORS control for http endpoints (not websock)
 func enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 }
 
+// Websocket endpoint
 func ws(w http.ResponseWriter, r *http.Request) {
 	log.Printf("WS Page Accessed: %+v", r)
-	c, err := websocket.Accept(w, r, nil)
+
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+		OriginPatterns: []string{"*"},
+	})
+
 	if err != nil {
 		log.Printf("websock error %v", err)
+		return
 	}
 	defer c.Close(websocket.StatusInternalError, "websocket closed")
 
-	tick := time.Tick(500 * time.Millisecond)
+	ticker := time.NewTicker(1000 * time.Millisecond)
+	defer ticker.Stop()
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
 	defer cancel()
 
-	for v := range tick {
-		err = wsjson.Write(ctx, c, v)
-		if err != nil {
-			log.Printf("Error Websocket Write %v", v)
+	loop := true
+	for loop {
+		select {
+		case <-ctx.Done():
+			loop = false
+			continue
+		case t := <-ticker.C:
+			err = wsjson.Write(ctx, c, t)
+			if err != nil {
+				log.Printf("Error Websocket Write %v", err.Error())
+				loop = false
+			}
+			continue
 		}
 	}
 
-	var v interface{}
-	err = wsjson.Read(ctx, c, &v)
-	if err != nil {
-		log.Printf("websock error %v", err)
-	}
-
-	log.Printf("received: %v", v)
-
+	log.Println("Loop ended")
 	c.Close(websocket.StatusNormalClosure, "")
 }
 
+// root http endpoint
 func rootPage(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Root Page Accessed: %+v", r)
 	enableCors(&w)

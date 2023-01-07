@@ -30,7 +30,10 @@ export class CommsComponent implements OnInit {
     console.log("Pushed it");
     this.ws = webSocket<string>('ws://localhost:8080/ws');
     this.ws.subscribe(
-        (msg: string) => { this.data = msg; },
+      (msg: string) => {
+        this.data = msg;
+        this.ws?.next("Got Data");
+      },
         err => { console.log('WebSocket Error'); },
         () => { console.log('WebSocket Closed'); }
       ); 

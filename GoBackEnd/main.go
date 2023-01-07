@@ -25,14 +25,14 @@ func enableCors(w *http.ResponseWriter) {
 
 // Websocket endpoint
 func ws(w http.ResponseWriter, r *http.Request) {
-	log.Printf("WS Page Accessed: %+v", r)
+	log.Printf("WS Page Accessed: %+v\n\n", r)
 
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		OriginPatterns: []string{"*"},
 	})
 
 	if err != nil {
-		log.Printf("websock error %v", err)
+		log.Printf("websock error %v\n", err)
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "websocket closed")
@@ -43,23 +43,36 @@ func ws(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second*30)
 	defer cancel()
 
-	loop := true
-	for loop {
+	go func() {
+
+		buf := make([]byte, 255)
+
+		for ctx.Err() == nil {
+			_, r, _ := c.Reader(ctx)
+			n, readErr := r.Read(buf)
+			if err != nil {
+				log.Println(readErr.Error())
+			}
+			fmt.Printf("Recieved: [%s]\n", string(buf[:n]))
+		}
+	}()
+
+	for ctx.Err() == nil {
 		select {
 		case <-ctx.Done():
-			loop = false
 			continue
 		case t := <-ticker.C:
 			err = wsjson.Write(ctx, c, t)
 			if err != nil {
-				log.Printf("Error Websocket Write %v", err.Error())
-				loop = false
+				log.Printf("Error Websocket Write %v\n", err.Error())
+				cancel()
 			}
 			continue
 		}
 	}
 
 	log.Println("Loop ended")
+	log.Printf("Context was %v\n", ctx.Err().Error())
 	c.Close(websocket.StatusNormalClosure, "")
 }
 
